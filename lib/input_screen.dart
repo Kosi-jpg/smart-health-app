@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'local_storage_service.dart';
 import 'health_records_screen.dart';
 
 class InputScreen extends StatefulWidget {
@@ -368,16 +369,26 @@ These are general wellness suggestions, not medical advice.
 ''';
 
       // Save the plan to the user's Supabase account.
-      await supabase.from('health_records').insert({
-        'user_id': user.id,
-        'health_data': {
-          'goal': selectedGoal,
-          'activity': activity,
-          'sleep': sleep,
-          'food_preferences': food.join(', '),
-          'recommendations': savedPlan,
-        },
-      });
+      final savedRecord = await supabase
+          .from('health_records')
+          .insert({
+            'user_id': user.id,
+            'health_data': {
+              'goal': selectedGoal,
+              'activity': activity,
+              'sleep': sleep,
+              'food_preferences': food.join(', '),
+              'recommendations': savedPlan,
+            },
+          })
+          .select()
+          .single();
+
+      // Keep an encrypted copy on this device.
+      await LocalStorageService.saveRecord(
+        user.id,
+        Map<String, dynamic>.from(savedRecord),
+      );
 
       if (!mounted) return;
 

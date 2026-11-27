@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'local_storage_service.dart';
 
 class HealthRecordsScreen extends StatefulWidget {
   const HealthRecordsScreen({super.key});
@@ -33,13 +34,30 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
       return [];
     }
 
-    final response = await supabase
-        .from('health_records')
-        .select()
-        .eq('user_id', user.id)
-        .order('created_at', ascending: false);
+    try {
+      final response = await supabase
+          .from('health_records')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
 
-    return List<Map<String, dynamic>>.from(response);
+      final records = List<Map<String, dynamic>>.from(response);
+
+      // Refresh the encrypted local backup with the cloud records.
+      await LocalStorageService.saveRecords(user.id, records);
+
+      return records;
+    } catch (error) {
+      // If the cloud is unavailable, try the local backup.
+      final cachedRecords =
+          await LocalStorageService.getRecords(user.id);
+
+      if (cachedRecords.isNotEmpty) {
+        return cachedRecords;
+      }
+
+      rethrow;
+    }
   }
 
   Future<void> refreshRecords() async {
@@ -106,6 +124,8 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
           .delete()
           .eq('id', recordId)
           .eq('user_id', user.id);
+
+      await LocalStorageService.deleteRecord(user.id, recordId);
 
       if (!mounted) return;
 
@@ -597,6 +617,24 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
                     fontSize: 13,
                     color: Colors.black54,
                   ),
+                ),
+                const SizedBox(height: 6),
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.lock_outline,
+                      size: 14,
+                      color: green,
+                    ),
+                    SizedBox(width: 5),
+                    Text(
+                      'Encrypted local device backup',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: green,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
